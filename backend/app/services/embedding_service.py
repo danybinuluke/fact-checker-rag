@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 _model = None
 
 
-def _load_model():
+def preload_model():
     """
-    Lazily load the sentence-transformers model.
+    Lazily load or preload the sentence-transformers model.
 
     Loads on first call and caches globally. This avoids the ~2s startup
     cost if embeddings are never needed during a particular request.
@@ -47,7 +47,7 @@ def encode(text: str) -> np.ndarray:
     Returns:
         A numpy array of shape (embedding_dimension,).
     """
-    model = _load_model()
+    model = preload_model()
     return model.encode(text, convert_to_tensor=False)
 
 
@@ -64,7 +64,7 @@ def encode_batch(texts: List[str]) -> np.ndarray:
     if not texts:
         return np.array([])
 
-    model = _load_model()
+    model = preload_model()
     return model.encode(texts, convert_to_tensor=False, show_progress_bar=False)
 
 

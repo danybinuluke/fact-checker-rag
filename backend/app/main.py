@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.routers import claims, graph, system, verification
 from app.services.llm_service import init_gemini
 from app.services.neo4j_service import get_graph_store
+from app.services.embedding_service import preload_model
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -84,6 +85,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("⚠ Ollama fallback disabled.")
 
+    # Preload embedding model (essential for production startup)
+    try:
+        preload_model()
+    except Exception as exc:
+        logger.error("✗ Embedding model preloading failed: %s", exc)
+
     yield
 
     # Shutdown: close Neo4j
@@ -113,8 +120,12 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://fact-checker-dbl.vercel.app"],
-    allow_credentials=False,
+    allow_origins=[
+        "https://fact-checker-dbl.vercel.app",
+        "https://fact-checker-rag-frontend.vercel.app",  # Common alternative
+        "http://localhost:3000",                        # Local dev
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

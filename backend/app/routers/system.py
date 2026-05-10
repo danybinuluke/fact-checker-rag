@@ -57,6 +57,20 @@ def record_error() -> None:
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
+@router.get("/")
+async def root() -> Dict[str, Any]:
+    """
+    Root endpoint — API welcome and basic info.
+    """
+    return {
+        "message": "Welcome to the Fact-Checking RAG API",
+        "version": "2.0.0",
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "status": "online"
+    }
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """
