@@ -1,6 +1,7 @@
 # Backend - Python
 backend/.env
 backend/.env.local
+backend/.env.example
 backend/__pycache__/
 backend/*.py[cod]
 backend/*$py.class
