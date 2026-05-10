@@ -33,7 +33,7 @@ async def handle_verify_claim(request: VerifyClaimRequest) -> VerifyClaimRespons
         if not request.claim.strip():
             raise HTTPException(status_code=400, detail="Claim cannot be empty.")
 
-        result = await verify_claim(request.claim)
+        result = await verify_claim(request.claim, model=request.model)
         record_request("verify", result.get("response_time_ms", 0))
 
         return VerifyClaimResponse(

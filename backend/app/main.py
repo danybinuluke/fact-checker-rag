@@ -72,6 +72,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("⚠ Neo4j not configured — using in-memory graph store.")
 
+    # Log OpenRouter status
+    if settings.openrouter_configured:
+        logger.info("✓ OpenRouter fallback enabled (model: %s)", settings.openrouter_model)
+    else:
+        logger.info("⚠ OpenRouter fallback disabled (API key missing).")
+
     # Log Ollama status
     if settings.ollama_enabled and not settings.is_production:
         logger.info("✓ Ollama fallback enabled (model: %s)", settings.ollama_model)

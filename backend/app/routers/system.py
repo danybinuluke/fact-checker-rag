@@ -69,7 +69,12 @@ async def health_check() -> HealthResponse:
     available_models = ["gemini"]
     services: Dict[str, str] = {}
 
-    # Check Ollama availability
+    # Check OpenRouter availability (Secondary)
+    if settings.openrouter_configured:
+        available_models.append("openrouter")
+        services["openrouter"] = "available"
+
+    # Check Ollama availability (Tertiary)
     if settings.ollama_enabled and not settings.is_production:
         if is_ollama_available():
             available_models.append("ollama")
@@ -96,7 +101,8 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy",
         primary_llm="gemini",
-        fallback_llm="ollama" if settings.ollama_enabled else "disabled",
+        secondary_llm="openrouter" if settings.openrouter_configured else "disabled",
+        tertiary_llm="ollama" if settings.ollama_enabled else "disabled",
         available_models=available_models,
         services=services,
     )
@@ -140,7 +146,8 @@ async def get_metrics() -> MetricsResponse:
         },
         models={
             "primary": f"Gemini ({settings.gemini_model})",
-            "fallback": f"Ollama ({settings.ollama_model})" if settings.ollama_enabled else "disabled",
+            "secondary": f"OpenRouter ({settings.openrouter_model})" if settings.openrouter_configured else "disabled",
+            "tertiary": f"Ollama ({settings.ollama_model})" if settings.ollama_enabled else "disabled",
             "ollama_available": is_ollama_available() if settings.ollama_enabled else False,
             "embedding_model": settings.embedding_model,
         },

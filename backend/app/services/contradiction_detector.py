@@ -14,7 +14,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from app.config import VERIFICATION_PROMPT
 from app.services import llm_service
 from app.services.neo4j_service import ClaimNode, ClaimRelationship, get_graph_store
 from app.services.pinecone_service import ScoredMatch, corpus_manager
@@ -22,7 +21,7 @@ from app.services.pinecone_service import ScoredMatch, corpus_manager
 logger = logging.getLogger(__name__)
 
 
-async def verify_claim(user_claim: str) -> Dict[str, Any]:
+async def verify_claim(user_claim: str, model: Optional[str] = None) -> Dict[str, Any]:
     """
     Verify a claim against the stored corpus using hybrid RAG.
 
@@ -49,7 +48,7 @@ async def verify_claim(user_claim: str) -> Dict[str, Any]:
     best_similarity = similar_matches[0].score if similar_matches else 0.0
 
     # Stage 2: LLM reasoning
-    analysis = _analyze_claim(user_claim, similar_texts)
+    analysis = await _analyze_claim(user_claim, similar_texts, model=model)
 
     # Stage 3: Store in graph DB
     await _store_verification_in_graph(user_claim, analysis)
@@ -73,42 +72,36 @@ async def verify_claim(user_claim: str) -> Dict[str, Any]:
     }
 
 
-def _analyze_claim(
-    user_claim: str, similar_claims: List[str]
+async def _analyze_claim(
+    user_claim: str, similar_claims: List[str], model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Send claim + evidence to LLM for contradiction analysis.
-
-    Returns parsed analysis dict or a safe default on failure.
+    Perform deep analysis of a claim using the fallback-enabled LLM manager.
     """
     try:
+        from app.llm import get_llm_manager
+        
         similar_text = _format_similar_claims(similar_claims)
-        prompt = VERIFICATION_PROMPT.format(
-            user_claim=user_claim, similar_claims_text=similar_text
-        )
-        response_text = llm_service.generate_content(
-            prompt, temperature=0.2, max_tokens=1024
-        )
-        parsed = llm_service.parse_json_response(response_text)
-        if parsed:
-            return _normalize_analysis(parsed)
-        else:
-            logger.error(f"Failed to parse JSON from LLM verification response: {response_text}")
-    except llm_service.LLMServiceError as exc:
-        logger.error("All LLMs failed for verification: %s", exc)
+        manager = get_llm_manager()
+        
+        # Verify claim using the fallback chain (starting with preferred provider if specified)
+        result = await manager.verify_claim(user_claim, similar_text, provider=model)
+        
+        # Return as dictionary for backward compatibility with FastAPI router
+        return result.model_dump()
+        
     except Exception as exc:
-        logger.error("Unexpected error during verification: %s", exc)
-
-    return {
-        "status": "NEUTRAL",
-        "confidence": 0.0,
-        "corpus_confidence": 0.0,
-        "training_confidence": 0.0,
-        "source": "none",
-        "explanation": "Analysis could not be completed. Check LLM connectivity.",
-        "supporting": [],
-        "contradicting": [],
-    }
+        logger.error("All LLM providers failed for claim verification: %s", exc)
+        return {
+            "status": "NEUTRAL",
+            "confidence": 0.0,
+            "corpus_confidence": 0.0,
+            "training_confidence": 0.0,
+            "source": "none",
+            "explanation": f"System error: All LLM verification providers failed. {str(exc)}",
+            "supporting": [],
+            "contradicting": [],
+        }
 
 
 def _normalize_analysis(data: Dict) -> Dict[str, Any]:

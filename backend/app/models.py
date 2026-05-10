@@ -52,6 +52,7 @@ class VerifyClaimRequest(BaseModel):
     """Request body for /verify-claim."""
 
     claim: str = Field(..., min_length=1, description="The claim to verify.")
+    model: Optional[str] = Field(default=None, description="Preferred LLM model (Gemini | Ollama).")
 
 
 # ── Response Models ───────────────────────────────────────────────────────
@@ -105,7 +106,8 @@ class HealthResponse(BaseModel):
 
     status: str
     primary_llm: str
-    fallback_llm: str
+    secondary_llm: Optional[str] = None
+    tertiary_llm: Optional[str] = None
     available_models: List[str]
     services: Dict[str, str] = Field(default_factory=dict)
 

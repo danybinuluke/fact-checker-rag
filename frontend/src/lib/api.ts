@@ -42,10 +42,11 @@ class FactCheckerAPI {
     }
   }
 
-  async verifyClaim(claim: string): Promise<VerifyClaimResponse> {
+  async verifyClaim(claim: string, model?: string): Promise<VerifyClaimResponse> {
     try {
       const response = await this.client.post('/verify-claim', {
         claim,
+        model,
       });
       return response.data;
     } catch (error) {

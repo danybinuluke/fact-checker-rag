@@ -10,7 +10,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from app.config import EXTRACTION_PROMPT
 from app.services import llm_service
 from app.services.neo4j_service import ClaimNode, get_graph_store
 from app.services.pinecone_service import corpus_manager
@@ -42,7 +41,7 @@ async def extract_claims(text: str, document_id: str = "user_input") -> Dict[str
     corpus_manager.add_to_corpus(text)
 
     # Step 2: Extract claims via LLM
-    claims = _extract_via_llm(text)
+    claims = await _extract_via_llm(text)
 
     # Step 3: Validate and normalize claims
     claims = _normalize_claims(claims)
@@ -61,31 +60,28 @@ async def extract_claims(text: str, document_id: str = "user_input") -> Dict[str
     }
 
 
-def _extract_via_llm(text: str) -> List[Dict[str, Any]]:
+async def _extract_via_llm(text: str) -> List[Dict[str, Any]]:
     """
-    Send text to the LLM and parse the claim extraction response.
+    Send text to the LLM manager and receive normalized claims.
 
     Args:
-        text: Source text (truncated to 3000 chars for prompt safety).
+        text: Source text (truncated for safety).
 
     Returns:
         List of claim dicts, or empty list on failure.
     """
     try:
-        prompt = EXTRACTION_PROMPT.format(text=text[:20000])
-        response_text = llm_service.generate_content(
-            prompt, temperature=0.3, max_tokens=1024
-        )
-        parsed = llm_service.parse_json_response(response_text)
-        if parsed and "claims" in parsed:
-            return parsed["claims"]
-        logger.warning("LLM response did not contain 'claims' key.")
-        return []
-    except llm_service.LLMServiceError as exc:
-        logger.error("All LLMs failed for claim extraction: %s", exc)
-        return []
+        from app.llm import get_llm_manager
+        
+        manager = get_llm_manager()
+        # Truncate text to avoid context window issues
+        result = await manager.extract_claims(text[:20000])
+        
+        # Convert Pydantic models to dicts for downstream compatibility
+        return [claim.model_dump() for claim in result.claims]
+        
     except Exception as exc:
-        logger.error("Unexpected error during claim extraction: %s", exc)
+        logger.error("All LLMs failed for claim extraction: %s", exc)
         return []
 
 
