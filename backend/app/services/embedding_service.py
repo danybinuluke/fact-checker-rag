@@ -14,32 +14,24 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# ── Module-level state ────────────────────────────────────────────────────
+# ── Gemini Client Setup ───────────────────────────────────────────────────
 
-_model = None
+_client = None
 
 
-def preload_model():
-    """
-    Lazily load or preload the sentence-transformers model.
-
-    Loads on first call and caches globally. This avoids the ~2s startup
-    cost if embeddings are never needed during a particular request.
-    """
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-
+def _get_client():
+    """Lazily initialize the Gemini client."""
+    global _client
+    if _client is None:
+        from google import genai
         settings = get_settings()
-        logger.info("Loading embedding model: %s (one-time initialization)...", settings.embedding_model)
-        _model = SentenceTransformer(settings.embedding_model)
-        logger.info("Embedding model loaded successfully.")
-    return _model
+        _client = genai.Client(api_key=settings.gemini_api_key)
+    return _client
 
 
 def encode(text: str) -> np.ndarray:
     """
-    Encode a single text string into a dense vector.
+    Encode a single text string into a dense vector using Gemini API.
 
     Args:
         text: The input text to embed.
@@ -47,13 +39,21 @@ def encode(text: str) -> np.ndarray:
     Returns:
         A numpy array of shape (embedding_dimension,).
     """
-    model = preload_model()
-    return model.encode(text, convert_to_tensor=False)
+    from google.genai import types
+    settings = get_settings()
+    client = _get_client()
+    
+    result = client.models.embed_content(
+        model="gemini-embedding-2",
+        contents=text,
+        config=types.EmbedContentConfig(output_dimensionality=settings.embedding_dimension)
+    )
+    return np.array(result.embeddings[0].values)
 
 
 def encode_batch(texts: List[str]) -> np.ndarray:
     """
-    Encode multiple text strings into dense vectors.
+    Encode multiple text strings into dense vectors using Gemini API.
 
     Args:
         texts: List of input texts.
@@ -64,8 +64,25 @@ def encode_batch(texts: List[str]) -> np.ndarray:
     if not texts:
         return np.array([])
 
-    model = preload_model()
-    return model.encode(texts, convert_to_tensor=False, show_progress_bar=False)
+    import concurrent.futures
+    from google.genai import types
+    settings = get_settings()
+    client = _get_client()
+    config = types.EmbedContentConfig(output_dimensionality=settings.embedding_dimension)
+    
+    def _embed_single(t: str):
+        res = client.models.embed_content(
+            model="gemini-embedding-2", 
+            contents=t, 
+            config=config
+        )
+        return res.embeddings[0].values
+
+    # Process chunks concurrently since this is I/O bound
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        embeddings = list(executor.map(_embed_single, texts))
+
+    return np.array(embeddings)
 
 
 def cosine_similarity_score(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
