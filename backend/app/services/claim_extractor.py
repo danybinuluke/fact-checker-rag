@@ -10,7 +10,6 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from app.services import llm_service
 from app.services.neo4j_service import ClaimNode, get_graph_store
 from app.services.pinecone_service import corpus_manager
 
