@@ -64,25 +64,22 @@ def encode_batch(texts: List[str]) -> np.ndarray:
     if not texts:
         return np.array([])
 
-    import concurrent.futures
     from google.genai import types
     settings = get_settings()
     client = _get_client()
     config = types.EmbedContentConfig(output_dimensionality=settings.embedding_dimension)
     
-    def _embed_single(t: str):
-        res = client.models.embed_content(
-            model="gemini-embedding-2", 
-            contents=t, 
-            config=config
-        )
-        return res.embeddings[0].values
+    # Passing a list of lists (e.g. [[text1], [text2]]) triggers batch embedding 
+    # in the google-genai SDK, completing the operation in a single API request.
+    batch_contents = [[t] for t in texts]
+    
+    res = client.models.embed_content(
+        model="gemini-embedding-2", 
+        contents=batch_contents, 
+        config=config
+    )
 
-    # Process chunks concurrently since this is I/O bound
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        embeddings = list(executor.map(_embed_single, texts))
-
-    return np.array(embeddings)
+    return np.array([e.values for e in res.embeddings])
 
 
 def cosine_similarity_score(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
