@@ -82,13 +82,15 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
         text = ""
 
         if filename.endswith(".txt"):
-            text = content.decode("utf-8")
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                # Fallback for Windows encoded text files
+                text = content.decode("windows-1252", errors="ignore")
         elif filename.endswith(".pdf"):
-            import pypdf
-            pdf_reader = pypdf.PdfReader(io.BytesIO(content))
-            text = "\n".join(
-                page.extract_text() or "" for page in pdf_reader.pages
-            )
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=content, filetype="pdf")
+            text = "\n".join(page.get_text() for page in doc)
         elif filename.endswith(".docx"):
             import docx
             doc = docx.Document(io.BytesIO(content))
@@ -99,9 +101,24 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
                 detail=f"Unsupported file format: {filename}. Use .txt, .pdf, or .docx",
             )
 
+        # Clean null bytes and non-printable control characters
+        text = text.replace("\x00", " ")
+        text = "".join(c for c in text if c.isprintable() or c in "\n\r\t")
+
         if not text.strip():
             raise HTTPException(
-                status_code=400, detail="Could not extract text from document."
+                status_code=400, detail="Could not extract any readable text from the document. If this is a PDF, it might be an image-based scan."
+            )
+
+        # Basic readability check: if a large portion is non-ascii garble, reject it.
+        # This catches PyPDF CID font extraction errors.
+        import string
+        printable = set(string.printable)
+        printable_ratio = sum(1 for c in text if c in printable) / max(len(text), 1)
+        if len(text) > 50 and printable_ratio < 0.3:
+            raise HTTPException(
+                status_code=400, 
+                detail="Extracted text appears to be corrupted or encoded with garbled characters. Please ensure the document is a readable text file and not an image-based or encrypted PDF."
             )
 
         # Extract claims from the document

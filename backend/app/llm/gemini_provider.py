@@ -20,10 +20,17 @@ class GeminiProvider(LLMProvider):
     def _clean_json_response(self, text: str) -> str:
         """Remove markdown code blocks if present."""
         if "```json" in text:
-            text = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL).group(1)
+            match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1)
         elif "```" in text:
-            text = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL).group(1)
-        return text.strip()
+            match = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1)
+        
+        # Fallback if there was no closing backtick or regex failed
+        text = text.replace("```json", "").replace("```", "").strip()
+        return text
 
     async def generate(
         self, 
