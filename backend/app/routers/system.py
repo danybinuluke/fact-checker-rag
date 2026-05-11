@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.config import get_settings
 from app.models import HealthResponse, MetricsResponse
-from app.services.llm_service import is_ollama_available
+from app.llm.ollama_provider import is_ollama_available
 from app.services.neo4j_service import get_graph_store
 from app.services.pinecone_service import corpus_manager, get_vector_store
 
@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["System"])
 
-# ── Tracked Metrics ───────────────────────────────────────────────────────
 
 _metrics: Dict[str, Any] = {
     "requests_total": 0,
@@ -54,14 +53,11 @@ def record_error() -> None:
     _metrics["errors_total"] += 1
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────
 
 
 @router.get("/")
 async def root() -> Dict[str, Any]:
-    """
-    Root endpoint — API welcome and basic info.
-    """
+    """Root endpoint — API welcome and basic info."""
     return {
         "message": "Welcome to the Fact-Checking RAG API",
         "version": "2.0.0",
@@ -83,12 +79,10 @@ async def health_check() -> HealthResponse:
     available_models = ["gemini"]
     services: Dict[str, str] = {}
 
-    # Check OpenRouter availability (Secondary)
     if settings.openrouter_configured:
         available_models.append("openrouter")
         services["openrouter"] = "available"
 
-    # Check Ollama availability (Tertiary)
     if settings.ollama_enabled and not settings.is_production:
         if is_ollama_available():
             available_models.append("ollama")
@@ -96,7 +90,6 @@ async def health_check() -> HealthResponse:
         else:
             services["ollama"] = "unavailable"
 
-    # Check vector store
     try:
         store = get_vector_store()
         stats = store.stats()
@@ -104,7 +97,6 @@ async def health_check() -> HealthResponse:
     except Exception:
         services["vector_store"] = "error"
 
-    # Check graph store
     try:
         graph = get_graph_store()
         stats = graph.stats()
@@ -132,7 +124,6 @@ async def get_metrics() -> MetricsResponse:
     """
     settings = get_settings()
 
-    # Calculate latency stats
     latencies = _metrics["latencies_ms"]
     avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
     p95_latency = (
@@ -141,10 +132,8 @@ async def get_metrics() -> MetricsResponse:
         else avg_latency
     )
 
-    # Uptime
     uptime_s = time.time() - _metrics["start_time"]
 
-    # Corpus stats
     corpus_stats = corpus_manager.get_stats()
 
     return MetricsResponse(

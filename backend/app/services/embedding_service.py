@@ -14,7 +14,6 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# ── Gemini Client Setup ───────────────────────────────────────────────────
 
 _client = None
 

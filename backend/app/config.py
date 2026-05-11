@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     All values can be overridden via environment variables or .env file.
     """
 
-    # ── LLM: Gemini (Primary) ──────────────────────────────────────────
+
     gemini_api_key: str = Field(
         ...,
         description="Google Gemini API key. Required for production.",
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         description="Gemini model identifier.",
     )
 
-    # ── LLM: OpenRouter (Secondary Fallback) ──────────────────────────
+
     openrouter_api_key: str = Field(
         default="",
         description="OpenRouter API key.",
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
         description="OpenRouter model identifier.",
     )
 
-    # ── LLM: Ollama (Tertiary Fallback) ───────────────────────────────
+
     ollama_url: str = Field(
         default="http://localhost:11434",
         description="Ollama server URL.",
@@ -54,13 +54,13 @@ class Settings(BaseSettings):
         description="Enable Ollama fallback.",
     )
 
-    # ── LLM: Shared Settings ──────────────────────────────────────────
+
     llm_timeout: int = Field(
         default=30,
         description="Global timeout for LLM requests in seconds.",
     )
 
-    # ── Pinecone (Vector DB) ───────────────────────────────────────────
+
     pinecone_api_key: str = Field(
         default="",
         description="Pinecone API key. If empty, falls back to in-memory vector store.",
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
         description="Pinecone deployment region.",
     )
 
-    # ── Neo4j (Graph DB) ──────────────────────────────────────────────
+
     neo4j_uri: str = Field(
         default="",
         description="Neo4j Aura connection URI. If empty, falls back to in-memory graph.",
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
         description="Neo4j password.",
     )
 
-    # ── Application ───────────────────────────────────────────────────
+
     environment: str = Field(
         default="development",
         description="Runtime environment: development | production",
@@ -106,10 +106,9 @@ class Settings(BaseSettings):
         description="Logging level.",
     )
 
-    # ── Embedding ─────────────────────────────────────────────────────
     embedding_model: str = Field(
-        default="all-MiniLM-L6-v2",
-        description="Sentence-transformers model name for embeddings.",
+        default="gemini-embedding-2",
+        description="Model name for embeddings.",
     )
     embedding_dimension: int = Field(
         default=384,
@@ -118,22 +117,18 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
-        """Check if running in production mode."""
         return self.environment.lower() == "production"
 
     @property
     def pinecone_configured(self) -> bool:
-        """Check if Pinecone credentials are provided."""
         return bool(self.pinecone_api_key)
 
     @property
     def neo4j_configured(self) -> bool:
-        """Check if Neo4j credentials are provided."""
         return bool(self.neo4j_uri and self.neo4j_password)
 
     @property
     def openrouter_configured(self) -> bool:
-        """Check if OpenRouter is configured."""
         return bool(self.openrouter_api_key)
 
     model_config = {
@@ -146,10 +141,5 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """
-    Return a cached Settings instance.
-
-    The instance is created once and reused across the application lifetime.
-    """
     return Settings()
 

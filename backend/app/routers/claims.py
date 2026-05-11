@@ -85,7 +85,6 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
             try:
                 text = content.decode("utf-8")
             except UnicodeDecodeError:
-                # Fallback for Windows encoded text files
                 text = content.decode("windows-1252", errors="ignore")
         elif filename.endswith(".pdf"):
             import fitz  # PyMuPDF
@@ -101,7 +100,6 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
                 detail=f"Unsupported file format: {filename}. Use .txt, .pdf, or .docx",
             )
 
-        # Clean null bytes and non-printable control characters
         text = text.replace("\x00", " ")
         text = "".join(c for c in text if c.isprintable() or c in "\n\r\t")
 
@@ -110,8 +108,6 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
                 status_code=400, detail="Could not extract any readable text from the document. If this is a PDF, it might be an image-based scan."
             )
 
-        # Basic readability check: if a large portion is non-ascii garble, reject it.
-        # This catches PyPDF CID font extraction errors.
         import string
         printable = set(string.printable)
         printable_ratio = sum(1 for c in text if c in printable) / max(len(text), 1)
@@ -121,7 +117,6 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
                 detail="Extracted text appears to be corrupted or encoded with garbled characters. Please ensure the document is a readable text file and not an image-based or encrypted PDF."
             )
 
-        # Extract claims from the document
         result = await extract_claims(text, file.filename or "uploaded_doc")
         record_request("extract", result.get("latency_ms", 0))
 

@@ -18,21 +18,17 @@ class LLMManager:
         self.settings = get_settings()
         self.providers: List[LLMProvider] = []
         
-        # Initialize providers based on configuration
-        # 1. Gemini (Primary)
         try:
             self.providers.append(GeminiProvider())
         except Exception as e:
             logger.warning("Failed to initialize Gemini provider: %s", e)
 
-        # 2. OpenRouter (Secondary)
         if self.settings.openrouter_configured:
             try:
                 self.providers.append(OpenRouterProvider())
             except Exception as e:
                 logger.warning("Failed to initialize OpenRouter provider: %s", e)
 
-        # 3. Ollama (Tertiary)
         if self.settings.ollama_enabled:
             try:
                 self.providers.append(OllamaProvider())
@@ -50,7 +46,6 @@ class LLMManager:
         """
         last_exception = None
         
-        # Determine the starting point
         start_index = 0
         if preferred_provider:
             for i, p in enumerate(self.providers):
@@ -93,7 +88,6 @@ class LLMManager:
             preferred_provider=provider
         )
 
-# Global singleton instance
 _manager: Optional[LLMManager] = None
 
 def get_llm_manager() -> LLMManager:

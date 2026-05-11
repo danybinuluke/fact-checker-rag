@@ -20,10 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import claims, graph, system, verification
-from app.services.llm_service import init_gemini
+from app.llm.llm_manager import get_llm_manager
 from app.services.neo4j_service import get_graph_store
 
-# ── Logging ───────────────────────────────────────────────────────────────
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,52 +32,40 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ── Lifespan ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager.
 
-    Startup:
-        - Load settings and validate configuration
-        - Initialize Gemini SDK
-        - Log service availability
 
-    Shutdown:
-        - Close Neo4j driver (if connected)
     """
     settings = get_settings()
     logger.info("Starting Fact-Checking RAG System v2.0")
     logger.info("Environment: %s", settings.environment)
     logger.info("Primary LLM: Gemini (%s)", settings.gemini_model)
 
-    # Initialize Gemini
     try:
-        init_gemini()
-        logger.info("✓ Gemini SDK initialized.")
+        get_llm_manager()
+        logger.info("✓ LLM Manager initialized.")
     except Exception as exc:
-        logger.error("✗ Gemini initialization failed: %s", exc)
+        logger.error("✗ LLM Manager initialization failed: %s", exc)
 
-    # Log Pinecone status
     if settings.pinecone_configured:
         logger.info("✓ Pinecone configured (index: %s)", settings.pinecone_index_name)
     else:
         logger.info("⚠ Pinecone not configured — using in-memory vector store.")
 
-    # Log Neo4j status
     if settings.neo4j_configured:
         logger.info("✓ Neo4j configured (%s)", settings.neo4j_uri)
     else:
         logger.info("⚠ Neo4j not configured — using in-memory graph store.")
 
-    # Log OpenRouter status
     if settings.openrouter_configured:
         logger.info("✓ OpenRouter fallback enabled (model: %s)", settings.openrouter_model)
     else:
         logger.info("⚠ OpenRouter fallback disabled (API key missing).")
 
-    # Log Ollama status
     if settings.ollama_enabled and not settings.is_production:
         logger.info("✓ Ollama fallback enabled (model: %s)", settings.ollama_model)
     else:
@@ -87,7 +74,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: close Neo4j
     try:
         graph = get_graph_store()
         await graph.close()
@@ -97,7 +83,6 @@ async def lifespan(app: FastAPI):
     logger.info("Fact-Checking RAG System shut down.")
 
 
-# ── FastAPI App ───────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Fact-Checking RAG API",
@@ -111,7 +96,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -124,14 +108,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
 app.include_router(system.router)
 app.include_router(claims.router)
 app.include_router(verification.router)
 app.include_router(graph.router)
 
 
-# ── Development Entry Point ──────────────────────────────────────────────
 
 if __name__ == "__main__":
     import os

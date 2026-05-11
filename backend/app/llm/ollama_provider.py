@@ -65,3 +65,15 @@ class OllamaProvider(LLMProvider):
         data["provider"] = "Ollama"
         data["model"] = actual_model
         return VerificationResult(**data)
+
+def is_ollama_available() -> bool:
+    settings = get_settings()
+    if not settings.ollama_enabled or settings.is_production:
+        return False
+    
+    import requests
+    try:
+        resp = requests.get(settings.ollama_url, timeout=2)
+        return resp.status_code == 200
+    except Exception:
+        return False

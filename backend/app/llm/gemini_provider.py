@@ -38,20 +38,29 @@ class GeminiProvider(LLMProvider):
         temperature: float = 0.3, 
         max_tokens: int = 1024
     ) -> tuple[str, str]:
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                ),
-            )
-            # Use self.model_id as the actual model for Gemini
-            return response.text, self.model_id
-        except Exception as exc:
-            logger.error("Gemini generation error: %s", exc)
-            raise
+        import asyncio
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_id,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_tokens,
+                    ),
+                )
+                return response.text, self.model_id
+            except Exception as exc:
+                if "429" in str(exc) and attempt < max_retries - 1:
+                    # Parse the retry delay if provided, otherwise default to 3s
+                    delay = 3 * (attempt + 1)
+                    logger.warning(f"Gemini rate limited (429). Retrying in {delay}s... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error("Gemini generation error: %s", exc)
+                raise
 
     async def extract_claims(self, text: str) -> ExtractionResult:
         prompt = EXTRACTION_PROMPT.format(text=text)
