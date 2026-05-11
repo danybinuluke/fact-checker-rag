@@ -22,7 +22,6 @@ from app.config import get_settings
 from app.routers import claims, graph, system, verification
 from app.services.llm_service import init_gemini
 from app.services.neo4j_service import get_graph_store
-from app.services.embedding_service import preload_model
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -85,11 +84,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("⚠ Ollama fallback disabled.")
 
-    # Preload embedding model (essential for production startup)
-    try:
-        preload_model()
-    except Exception as exc:
-        logger.error("✗ Embedding model preloading failed: %s", exc)
 
     yield
 
