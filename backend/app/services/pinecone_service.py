@@ -165,7 +165,7 @@ class CorpusManager:
         return stats
 
     @staticmethod
-    def _chunk_text(text: str, max_size: int = 800, min_size: int = 30) -> List[str]:
+    def _chunk_text(text: str, max_size: int = 3000, min_size: int = 30) -> List[str]:
         """Split text into paragraph/sentence chunks."""
         raw = re.split(r"\n\s*\n", text)
         chunks: List[str] = []

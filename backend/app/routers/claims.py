@@ -90,6 +90,17 @@ async def handle_upload_document(file: UploadFile = File(...)) -> UploadDocument
             import fitz  # PyMuPDF
             doc = fitz.open(stream=content, filetype="pdf")
             text = "\n".join(page.get_text() for page in doc)
+            
+            # If PyMuPDF extracts very little text or garbled text, 
+            # we can fallback to pdfplumber locally instead of using an API
+            import string
+            printable = set(string.printable)
+            printable_ratio = sum(1 for c in text if c in printable) / max(len(text), 1)
+            
+            if len(text) < 50 or printable_ratio < 0.5:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    text = "\n".join(page.extract_text() or "" for page in pdf.pages)
         elif filename.endswith(".docx"):
             import docx
             doc = docx.Document(io.BytesIO(content))

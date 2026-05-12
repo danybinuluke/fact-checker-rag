@@ -69,16 +69,31 @@ def encode_batch(texts: List[str]) -> np.ndarray:
     config = types.EmbedContentConfig(output_dimensionality=settings.embedding_dimension)
     
     # Passing a list of lists (e.g. [[text1], [text2]]) triggers batch embedding 
-    # in the google-genai SDK, completing the operation in a single API request.
+    # in the google-genai SDK. The maximum number of requests per batch is 100.
     batch_contents = [[t] for t in texts]
     
-    res = client.models.embed_content(
-        model="gemini-embedding-2", 
-        contents=batch_contents, 
-        config=config
-    )
+    all_embeddings = []
+    import time
+    
+    for i in range(0, len(batch_contents), 100):
+        chunk = batch_contents[i:i+100]
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                res = client.models.embed_content(
+                    model="gemini-embedding-2", 
+                    contents=chunk, 
+                    config=config
+                )
+                all_embeddings.extend([e.values for e in res.embeddings])
+                break
+            except Exception as e:
+                if any(c in str(e) for c in ["429", "500", "502", "503", "504"]) and attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                else:
+                    raise
 
-    return np.array([e.values for e in res.embeddings])
+    return np.array(all_embeddings)
 
 
 def cosine_similarity_score(vec_a: np.ndarray, vec_b: np.ndarray) -> float:

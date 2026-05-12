@@ -53,10 +53,10 @@ class GeminiProvider(LLMProvider):
                 )
                 return response.text, self.model_id
             except Exception as exc:
-                if "429" in str(exc) and attempt < max_retries - 1:
+                if any(c in str(exc) for c in ["429", "500", "502", "503", "504"]) and attempt < max_retries - 1:
                     # Parse the retry delay if provided, otherwise default to 3s
                     delay = 3 * (attempt + 1)
-                    logger.warning(f"Gemini rate limited (429). Retrying in {delay}s... (Attempt {attempt + 1}/{max_retries})")
+                    logger.warning(f"Gemini rate limited or unavailable. Retrying in {delay}s... (Attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(delay)
                     continue
                 logger.error("Gemini generation error: %s", exc)
@@ -64,7 +64,7 @@ class GeminiProvider(LLMProvider):
 
     async def extract_claims(self, text: str) -> ExtractionResult:
         prompt = EXTRACTION_PROMPT.format(text=text)
-        raw_response, _ = await self.generate(prompt, temperature=0.2)
+        raw_response, _ = await self.generate(prompt, temperature=0.2, max_tokens=4096)
         cleaned = self._clean_json_response(raw_response)
         data = json.loads(cleaned)
         return ExtractionResult(**data)
